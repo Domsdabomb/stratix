@@ -1,0 +1,47 @@
+name: Build Stratix IPA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-tvos:
+    runs-on: macos-26
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify Xcode and tvOS SDK
+        run: |
+          xcodebuild -version
+          xcodebuild -showsdks
+
+      - name: Build unsigned tvOS app
+        run: |
+          xcodebuild \
+            -workspace Stratix.xcworkspace \
+            -scheme Stratix-Debug \
+            -sdk appletvos \
+            -configuration Release \
+            -destination 'generic/platform=tvOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package into IPA
+        run: |
+          mkdir -p Payload
+          APP_PATH=$(find build/Build/Products/Release-appletvos -name "*.app" -maxdepth 1 | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo "No .app bundle found"
+            exit 1
+          fi
+          cp -R "$APP_PATH" Payload/
+          zip -qry Stratix.ipa Payload
+
+      - name: Upload Stratix IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Stratix-tvOS-IPA
+          path: Stratix.ipa
